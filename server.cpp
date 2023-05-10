@@ -1,10 +1,40 @@
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-
+#include <windows.h>
+#include <conio.h>
 #pragma comment(lib, "ws2_32.lib") //加载ws2_32库
 
 using namespace std;
+DWORD WINAPI clientThread(LPVOID lpParam)
+{
+    SOCKET clientSocket = *(SOCKET*)lpParam;
+    
+    // Receive client messages
+    char buffer[1024];
+    int recvSize;
+    
+    recvSize = recv(clientSocket, buffer, sizeof(buffer), 0);
+    if (recvSize > 0) {
+        buffer[recvSize] = '\0';
+        std::cout << "Received message: " << buffer << std::endl;
+    }
+    else if (recvSize == 0) {
+        std::cout << "Client disconnected." << std::endl;
+    }
+    else {
+        std::cerr << "Failed to receive message: " << WSAGetLastError() << std::endl;
+    }
+    
+    std::string response = "success";
+    if (send(clientSocket, response.c_str(), response.size(), 0) == SOCKET_ERROR) {
+        std::cerr << "Failed to send data: " << WSAGetLastError() << std::endl;
+    }
+
+    closesocket(clientSocket);
+    return 0;
+}
+
 int main () 
 {
     //initialize Winsock
@@ -47,46 +77,45 @@ int main ()
         WSACleanup();
         return 1;
     }
+    else 
+    {
+        cout << "listening..." << endl;
+    }
 
     // accept the bind of client
-    SOCKET clientSocket;
+    
     sockaddr_in clientAddress;
     int addrLen = sizeof(clientAddress);
-    clientSocket = accept(listenSocket, (SOCKADDR *)&clientAddress, &addrLen);
-    if (clientSocket == INVALID_SOCKET) 
-    {
-        cout << "Failed to accept client: " << WSAGetLastError() << endl;
-        closesocket(listenSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    // Receive client messages
-    char buffer[1024];
-    int recvSize;
     
-    recvSize = recv(clientSocket, buffer, sizeof(buffer), 0);
-    if (recvSize > 0) {
-        buffer[recvSize] = '\0';
-        cout << "Received message: " << buffer << endl;
-    }
-    else if (recvSize == 0) {
-        cout << "Client disconnected." << endl;
-    }
-    else {
-        cout << "Failed to receive message: " << WSAGetLastError() << endl;
-    }
-    string str = "success";
-    if (send(clientSocket, str.c_str(), str.size(), 0) == SOCKET_ERROR)
+    while (true)
     {
-        std::cerr << "Failed to send data: " << WSAGetLastError() << '\n';
+        SOCKET clientSocket = accept(listenSocket, (SOCKADDR*)&clientAddress, &addrLen);
+        if (clientSocket == INVALID_SOCKET)
+        {
+            std::cerr << "Failed to accept client: " << WSAGetLastError() << std::endl;
+            closesocket(listenSocket);
+            WSACleanup();
+            return 1;
+        }
+        HANDLE threadHandle = CreateThread(NULL, 0, clientThread, &clientSocket, 0, NULL);
+        if (threadHandle == NULL)
+        {
+            std::cerr << "Failed to create thread." << std::endl;
+            closesocket(clientSocket);
+            closesocket(listenSocket);
+            WSACleanup();
+            return 1;
+        }
+        // wait the thread end;
+        WaitForSingleObject(threadHandle, INFINITE);
+
+        // close the thread's handle
+        CloseHandle(threadHandle);
         closesocket(clientSocket);
-        WSACleanup();
-        return 1;
     }
 
     // close bind
-    closesocket(clientSocket);
+    
     closesocket(listenSocket);
     WSACleanup();
 
