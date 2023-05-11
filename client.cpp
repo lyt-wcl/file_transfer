@@ -1,22 +1,25 @@
 #include <iostream>
+#include <fstream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 #pragma comment(lib, "ws2_32.lib")
+#define BUFFER_SIZE 1024
+using namespace std;
 
 int main()
 {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
-        std::cerr << "Failed to initialize Winsock\n";
+        cerr << "Failed to initialize Winsock\n";
         return 1;
     }
 
     SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (clientSocket == INVALID_SOCKET)
     {
-        std::cerr << "Failed to create socket: " << WSAGetLastError() << '\n';
+        cerr << "Failed to create socket: " << WSAGetLastError() << '\n';
         WSACleanup();
         return 1;
     }
@@ -28,39 +31,44 @@ int main()
 
     if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
     {
-        std::cerr << "Failed to connect to server: " << WSAGetLastError() << '\n';
+        cerr << "Failed to connect to server: " << WSAGetLastError() << '\n';
         closesocket(clientSocket);
         WSACleanup();
         return 1;
     }
 
-    char buffer[1024] = "Hello, server!";
-    if (send(clientSocket, buffer, strlen(buffer), 0) == SOCKET_ERROR)
-    {
-        std::cerr << "Failed to send data: " << WSAGetLastError() << '\n';
+    ifstream file("test.bin", ios::binary); // 替换为待发送文件的路径
+    if (!file) {
+        cout << "Failed to open file." << endl;
         closesocket(clientSocket);
         WSACleanup();
         return 1;
     }
 
-    memset(buffer, 0, sizeof(buffer));
-    int numBytes = recv(clientSocket, buffer, sizeof(buffer), 0);
-    if (numBytes == SOCKET_ERROR)
-    {
-        std::cerr << "Failed to receive data: " << WSAGetLastError() << '\n';
-        closesocket(clientSocket);
-        WSACleanup();
-        return 1;
-    }
-    else if (numBytes == 0)
-    {
-        std::cerr << "Connection closed by server\n";
-        closesocket(clientSocket);
-        WSACleanup();
-        return 1;
+    char buffer[BUFFER_SIZE];
+    int bytesRead;
+    int totalSent = 0; // 用于跟踪已发送的字节数
+
+    while ((bytesRead = file.read(buffer, BUFFER_SIZE).gcount()) > 0) {
+        int bytesSent = send(clientSocket, buffer, bytesRead, 0);
+        if (bytesSent == SOCKET_ERROR) {
+            cout << "Failed to send data." << endl;
+            file.close();
+            closesocket(clientSocket);
+            WSACleanup();
+            return 1;
+        }
+
+        totalSent += bytesSent;
+
+        cout << "Sent: " << totalSent << " bytes" << endl;
     }
 
-    std::cout << "Received from server: " << buffer << '\n';
+    file.close();
+    closesocket(clientSocket);
+    WSACleanup();
+
+    cout << "File sent successfully." << endl;
 
     closesocket(clientSocket);
     WSACleanup();
