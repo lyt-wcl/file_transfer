@@ -37,7 +37,7 @@ int main()
         return 1;
     }
 
-    ifstream file("test.bin", ios::binary); // 替换为待发送文件的路径
+    ifstream file("test.mp3", ios::binary); // 替换为待发送文件的路径
     if (!file) {
         cout << "Failed to open file." << endl;
         closesocket(clientSocket);
@@ -45,24 +45,39 @@ int main()
         return 1;
     }
 
-    char buffer[BUFFER_SIZE];
-    int bytesRead;
-    int totalSent = 0; // 用于跟踪已发送的字节数
+    
 
-    while ((bytesRead = file.read(buffer, BUFFER_SIZE).gcount()) > 0) {
+    file.seekg(0, std::ios::end);
+    int fileSize = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    // 发送文件大小
+    if (send(clientSocket, (char*)&fileSize, sizeof(fileSize), 0) == SOCKET_ERROR) {
+        std::cout << "Failed to send file size." << std::endl;
+        file.close();
+        closesocket(clientSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // 设置缓冲区
+    const int bufferSize = 1024;
+    char buffer[bufferSize];
+    int count = 0;
+    while (!file.eof()) {
+        file.read(buffer, bufferSize);
+        int bytesRead = file.gcount();
         int bytesSent = send(clientSocket, buffer, bytesRead, 0);
         if (bytesSent == SOCKET_ERROR) {
-            cout << "Failed to send data." << endl;
+            std::cout << "Failed to send data." << std::endl;
             file.close();
             closesocket(clientSocket);
             WSACleanup();
             return 1;
         }
-
-        totalSent += bytesSent;
-
-        cout << "Sent: " << totalSent << " bytes" << endl;
+        count++;
     }
+    cout << count << endl;
 
     file.close();
     closesocket(clientSocket);

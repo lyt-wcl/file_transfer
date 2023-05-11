@@ -13,16 +13,28 @@ DWORD WINAPI clientThread(LPVOID lpParam)
     
     // Receive client messages
     cout << "Client connected." << endl;
-
+    // 接收文件大小
+    int fileSize;
+    int bytesReceived = recv(clientSocket, (char*)&fileSize, sizeof(fileSize), 0);
+    if (bytesReceived == SOCKET_ERROR) {
+        std::cout << "Failed to receive file size." << std::endl;
+        closesocket(clientSocket);
+        WSACleanup();
+        return 1;
+    } 
+    else {
+        cout << "file size:" << fileSize << endl;
+    }
     // 接收文件内容并保存到磁盘
-    ofstream file("test/test.txt",ios::binary | ios::app); // 追加写入模式，可以根据需要更改文件名
+    ofstream file("test/test.mp3",ios::binary | ios::app); // 追加写入模式，可以根据需要更改文件名
 
     char buffer[BUFFER_SIZE];
-    int bytesReceived;
-
+    int count = 0;
     while ((bytesReceived = recv(clientSocket, buffer, BUFFER_SIZE, 0)) > 0) {
         file.write(buffer, bytesReceived);
+        count++;
     }
+    cout << count << endl;
 
     file.close();
 
